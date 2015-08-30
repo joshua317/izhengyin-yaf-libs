@@ -1,0 +1,7 @@
+.buildpath
+.project
+.settings
+.[a-z]+
+.DS_Store
+node_modules
+wordpress
