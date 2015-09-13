@@ -22,22 +22,19 @@ use IZY\Sys\Exception\DbException;
 
 abstract class PdoAbstract
 {
-	protected  $pdo;
+	protected  $pdo = null;
 	
 	private static $expr = array('=','!=','<','>','<=','>=');
 	
 	protected $result;
 	
+	private $pconnect;
 	
 	
 	//初始化
 	public function __construct($pconnect = false)
 	{
-		try {
-			$this->pdo = PdoFactory::instance($this->dbName(),$pconnect);
-		}catch (\PDOException $e){
-			throw new DbException($e->getMessage());
-		}
+		$this->pconnect = $pconnect;
 	}
 	
 	/**
@@ -47,6 +44,8 @@ abstract class PdoAbstract
 	 */
 	public function insert($data)
 	{
+		$pdo = $this->getInstance();
+		
 		if(!is_array($data) || empty($data) || !is_string(key($data))) 
 			throw new DbException('insert data is invalid!');
 		$fields = '';
@@ -58,12 +57,12 @@ abstract class PdoAbstract
 		//拼接预准备sql
 		$sql = '';
 		$sql .='INSERT INTO '.$this->tableName().'('.rtrim($fields,',').') VALUES('.rtrim($params,',').')';
-		$stmt = $this->pdo->prepare($sql);
+		$stmt = $pdo->prepare($sql);
 		foreach ($data as $field=>$v){
 			$stmt->bindParam(':'.$field, $data[$field]);
 		}
 		$affecteds = $stmt->execute();
-		$insertId = $this->pdo->lastInsertId();
+		$insertId = $pdo->lastInsertId();
 		return $insertId?$insertId:$affecteds;
 	}
 	
@@ -74,6 +73,8 @@ abstract class PdoAbstract
 	 */
 	public function update($where,$data)
 	{
+		$pdo = $this->getInstance();
+		
 		if(empty($data) || !is_array($data)){
 			throw new DbException('update data is invalid!');
 		}
@@ -103,7 +104,7 @@ abstract class PdoAbstract
 		$sql .= rtrim($sqlFields,',').' WHERE '.$sqlWheres;
 		
 		//预准备方式执行Sql语句
-		$stmt = $this->pdo->prepare($sql);
+		$stmt = $pdo->prepare($sql);
 		foreach ($params as $k=>$v){
 			$stmt->bindParam(':'.$k,$params[$k]);
 		}
@@ -160,11 +161,13 @@ abstract class PdoAbstract
 	 */
 	private function query($sql,$where)
 	{
+		$pdo = $this->getInstance();
+		
 		$result = array();
 		try {
 			if(is_array($where) && !empty($where))
 			{
-				$stmt = $this->pdo->prepare($sql);
+				$stmt =$pdo->prepare($sql);
 				foreach ($where as $field=>$v)
 				{
 					$stmt->bindParam($field,$where[$field]);
@@ -172,7 +175,7 @@ abstract class PdoAbstract
 				$stmt->execute();
 				$this->result = $stmt;
 			}else{	//普通查询
-				$this->result = $this->pdo->query($sql);
+				$this->result = $pdo->query($sql);
 			}
 			$result = $this->result->fetchAll(\PDO::FETCH_ASSOC);
 		}catch (\PDOException $e){
@@ -188,11 +191,12 @@ abstract class PdoAbstract
 	 */
 	private function exec($sql,$where)
 	{
+		$pdo = $this->getInstance();
 		$result = array();
 		try {
 			if(is_array($where) && !empty($where))
 			{
-				$stmt = $this->pdo->prepare($sql);
+				$stmt = $pdo->prepare($sql);
 				foreach ($where as $field=>$v)
 				{
 					$stmt->bindParam($field,$where[$field]);
@@ -227,7 +231,21 @@ abstract class PdoAbstract
 		return array($sqlWhere,$params);
 	}
 	
-	
+	/**
+	 * 取得Pdo实例
+	 * @throws DbException
+	 */
+	private function getInstance(){
+		
+		if($this->pdo === null){
+			try {
+				$this->pdo = PdoFactory::instance($this->dbName(),$this->pconnect);
+			}catch (\PDOException $e){
+				throw new DbException($e->getMessage());
+			}
+		}
+		return $this->pdo;
+	}
 	
 	public abstract function dbName();
 	public abstract function tableName();
